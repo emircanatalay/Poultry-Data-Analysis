@@ -1,0 +1,20 @@
+# Kümes Hayvanları Üretim Verileri Analizi
+#### Veriseti Açıklaması
+ty : tavuk yumurtası sayısı (bin adet),
+ty_toplam : senelik toplam tavuk yumurtası sayısı(bin adet),
+hindi_kulucka : hindi civcivi üretimi için kuluçkaya basılan yumurta sayısı (bin adet),
+hindi_kulucka_toplam : senelik toplam hindi civcivi üretimi için kuluçkaya basılan yumurta sayısı(bin adet), 
+üh : üretilen hindi civcivi sayısı (bin adet),
+üh_toplam : senelik toplam üretilen hindi civcivi sayısı(bin adet)  
+kt : kesilen tavuk sayısı (bin adet),
+kt_toplam : senelik toplam kesilen tavuk sayısı (bin adet), 
+te : elde edilen tavuk eti miktarı (ton),
+te_toplam : senelik toplam elde edilen tavuk eti miktarı (ton), 
+tavuk_kulucka : tavuk civcivi üretimi için kuluçkaya basılan yumurta sayısı (bin adet),
+tavuk_kulucka_toplam : senelik toplam tavuk civcivi üretimi için kuluçkaya basılan yumurta sayısı (bin adet), 
+üt : üretilen tavuk civcivi sayısı (bin adet),
+üt_toplam : senelik toplam ürerilen tavuk civcivi sayısı (bin adet), 
+kh : kesilen hindi sayısı (bin adet),
+kh_toplam : senelik toplam kesilen hindi sayısı (bin adet), 
+he : elde edilen hindi eti miktarı (ton),
+he_toplam : senelik elde edilen hindi eti miktarı (ton),
