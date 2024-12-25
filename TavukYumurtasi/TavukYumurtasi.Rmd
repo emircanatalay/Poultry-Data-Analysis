@@ -1,0 +1,521 @@
+---
+title: "<span style='font-size: 22px;'>Tek Değişkenli Zaman Serisi Analizi</span>"
+author: "Emircan ATALAY"
+output:
+  html_document:
+    toc: true       
+    toc_depth: 3   
+    toc_float: true 
+    theme: united
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Veri ve Metodoloji**
+
+Bu çalışmada kullanılan veri, Türkiye İstatistik Kurumu (TÜİK) tarafından yayımlanan, 2015
+(Haziran)-2023 (Aralık) yılları arasındaki tavuk yumurtası üretim miktarını (bin adet)
+kapsamaktadır. Veriler aylık olarak düzenlenmiş olup, toplamda 103 gözlemden
+oluşmaktadır. Veriler, trend, mevsimsellik ve rastgele bileşenlerden oluşan tipik bir zaman
+serisi yapısına sahiptir. Analiz sürecinde, öncelikle zaman serisinin genel görünümünü
+anlamak amacıyla bir zaman serisi grafiği oluşturulmuştur. Daha sonra, serinin otokorelasyon
+ve kısmi otokorelasyon fonksiyonları (ACF ve PACF) incelenerek serinin durağanlık durumu
+ve otoregresif yapısı analiz edilmiştir. Serinin durağan olmaması durumunda fark alma
+yöntemi uygulanarak durağanlık sağlanmıştır. Ayrıştırma modelleri, Regresyon
+modelleri(üstel regresyon, kübik regresyon, karesel regresyon, lojistik regresyon modelleri),
+Üstel düzleştirme yöntemleri(Winters yöntemleri), otoregresif modeller (AR, MA, ARMA,
+ARIMA) kullanılarak serinin yapısına en uygun model belirlenmiştir. Model seçimi sırasında
+Akaike Bilgi Kriteri (AIC) ve Bayes Bilgi Kriteri (BIC) , Ortalama Mutlak Hata (MAE),
+Ortalama Yüzde Hata (MAPE) gibi değerlendirme kriterleri göz önünde bulundurulmuştur.
+
+
+## **Kütüphanelerin Yüklenmesi ve Verinin Aktarılması**
+```{r, warning=FALSE, error=FALSE,message=FALSE}
+library(fpp)
+library(forecast)
+library(haven)
+library(stats)
+library(ggplot2)
+```
+
+```{r}
+veri = read_sav("veri.sav")
+head(veri)
+summary(veri)
+```
+
+## **Zaman Serisi, ACF ve PACF Grafikleri**
+
+```{r}
+veri_ts = ts(veri)
+
+ts.plot(veri_ts,gpars=list(xlab="Zaman", ylab="Yumurta Sayısı(Bin adet)",main= "Zaman Serisi Grafiği",lwd=2))
+```
+ 
+ Zaman serisi grafiği incelendiğinde, genel olarak bir artış eğiliminin olduğu gözlemlenmektedir. Ayrıca, belirli aralıklarla artış ve azalışların meydana gelmesi, serinin hem mevsimsel dalgalanmalara hem de uzun vadeli bir trende sahip olabileceğini düşündürmektedir.
+
+ Serinin geçmiş değerleri ile olan ilişkilerini daha net bir şekilde gözlemleyebilmek ve mevsimsel ile trend bileşenleri hakkında daha güçlü çıkarımlar yapabilmek adına ACF (Autocorrelation Function) ve PACF (Partial Autocorrelation Function) grafikleri incelenecektir.
+
+```{r}
+Acf(veri_ts,lag.max = 42,  ylim=c(-1,1), lwd=3, main = "ACF Grafiği", xlab="Gecikme")
+Pacf(veri_ts,lag.max = 42, ylim=c(-1,1), lwd=3, main = "PACF Grafiği", xlab="Gecikme")
+```
+
+
+ ACF grafiği incelendiğinde, ilk dört gecikme değerinin sınır dışında kaldığı gözlemlenmektedir. Bu durum, zaman serisinde bir trendin mevcut olduğuna dair güçlü bir gösterge sunmaktadır.
+
+ Trend mevcut olduğu için seriyi durağan hale getirmek adına fark alma yöntemi kullanılacaktır ve fark alınmış serinin ACF grafiği tekrar incelenecektir.
+
+
+### **Farkı Alınmış Seri**
+
+```{r}
+veri_trend = diff(veri_ts)
+```
+
+```{r}
+Acf(veri_trend,lag.max = 42,  ylim=c(-1,1), lwd=3, main = "ACF Grafiği", xlab="Gecikme")
+```
+
+ Birinci derece farkı alınmış serinin ACF grafiği yukarıda verilmiştir. Grafikte, ilk dört gecikme değerinin sınırlar içerisinde kaldığı gözlemlenmektedir, bu da serinin trendden arındırıldığını göstermektedir. Ancak, belirli aralıklarla bazı gecikme değerlerinin sınırların dışına çıktığı da dikkat çekmektedir. Bu durum, serinin mevsimsel bileşenler içerdiğini ortaya koymaktadır. 
+ 
+ Belirli aralıklarla sınırların dışına çıkan gecikme değerleri göz önünde bulundurularak, periyot belirlenip mevsimsel fark alınarak seri mevsimsellikten arındırılacak ve durağan hale getirilecektir. 
+ 
+ Periyot belirlenirken, sırasıyla sınır dışına çıkan en büyük gecikme değeri ile ikinci en büyük gecikme değeri arasındaki gecikmelerin sayısı göz önünde bulundurulmuş ve periyot 12 olarak belirlenmiştir.
+
+```{r}
+veri_mevsimsel = diff(veri_trend, lag = 12)
+```
+
+```{r}
+Acf(veri_mevsimsel,lag.max = 42,  ylim=c(-1,1), lwd=3, main = "ACF Grafiği", xlab="Gecikme")
+```
+ 
+ Farkı alınmış serinin ACF grafiği yukarıda verilmiştir. Grafiğe bakıldığında, serinin trend ve mevsimsellikten arındırıldığı ve böylece durağan hale geldiği gözlemlenmektedir.
+ 
+ Serinin durağan hale getirilmesinin ardından, uygun bir model seçebilmek için çeşitli yöntemler uygulanacaktır. Bu süreçte farklı modelleme yöntemleri, serinin yapısına en iyi uyum sağlayacak modelin belirlenmesi amacıyla değerlendirilecektir. Analiz sonuçları, model seçiminin doğruluğunu destekleyen kriterler ve görsellerle detaylı şekilde sunulacaktır.
+ 
+## **Toplamsal Winters Yöntemi**
+
+```{r}
+veri_ts2 = ts(veri, start = c(2015,6), frequency = 12)
+```
+
+```{r}
+Winters1 = ets(veri_ts2, model = "AAA")
+
+summary(Winters1)
+```
+
+ Kullanılan veri kümesine gerekli düzeltmeler yapıldıktan sonra Toplamsal Winters yöntemi
+uygulandığında testin özet sonuçları yukarıdaki gibidir.
+
+ Modelin uygunluğunu kontrol etmek için ilk olarak orijinal seri ile tahmin serisinin uyumu incelenecektir.
+
+```{r}
+tahmint = Winters1[["fitted"]]
+
+plot(window(veri_ts2), main = "Zaman Serisi Uyum Grafiği", 
+      xlab="Zaman (Yıl)", ylab="Yumurta Sayısı(Bin Adet)",lty=1, col=4, lwd=3,ylim=c(min(veri_ts2), max(veri_ts2)), 
+      cex.main = 1)
+lines( window(tahmint) ,lty=3,col=2,lwd=3)
+legend("topleft",c(expression(paste(Veri)),
+               expression(paste(Tahmin))),
+       lwd=c(2,2),lty=c(1,3), cex=0.7, col=c(4,2),box.lwd = 0.5)
+
+```
+
+ Grafik incelendiğinde, orijinal seri ile tahmin serisinin yeteri kadar uyum içerisinde olduğu söylenebilir.
+ 
+  Artıkların, model varsayımlarına uygunluğunu incelerken genellikle kullanılan üç temel grafik bulunmaktadır. ACF Grafiği, Artıkların Zaman Grafiği ve Artıkların Dağılım Grafiği. Bu grafikler incelenecek ve Box-Ljung testi uygulanacaktır.
+
+```{r}
+hata = Winters1[["residuals"]]
+```
+
+### **Box-Ljung Test**
+
+\(H_0\) : Gecikmeler arasında ilişki yoktur.
+
+\(H_1\) : Gecikmeler arasında ilişki vardır.
+
+```{r}
+Box.test (hata, lag = 42, type = "Ljung")
+```
+Test sonucunda, p-value > 0.05 olduğundan dolayı \(H_0\) **REDDEDİLEMEZ.** Yani gecikmeler arasında ilişki olmadığı söylenebilir.
+
+### **Hata serisinin ACF grafiği**
+
+```{r}
+Acf(hata,main="Hata Serisi", lag.max = 42,  ylim=c(-1,1), lwd=3)
+```
+
+ Grafikte görüldüğü üzere, gecikmeler sınırların içerisinde olduğu için hata serisi, akgürültü serisidir.
+ 
+  Box-Ljung testi sonucunda da gecikmeler arasında ilişki olmadığını söylemiştik.  İncelediğimiz ACF grafiğinde de hata serisinin akgürültü serisi olduğu anlaşılmıştır.
+
+### **Artıkların Zaman Serisi Grafiği ve Dağılım Grafiği**
+
+```{r}
+checkresiduals(Winters1, lag = 42)
+```
+ Residuals from ETS grafiği incelendiğinde, artıkların belirgin bir trend, mevsimsellik veya yapı göstermediği bu sebeple rastgele bir şekilde dağılmış olduğu söylenebilir. Bu istenilen bir durumdur.
+
+ Artıkların dağılım grafiğinde, artıkların dağılımının normal dağılıma uyumlu olması beklenir.Yukarıdaki grafik incelendiğinde, artıkların dağılımının ,neredeyse, normal dağılıma uyumlu olduğu söylenebilir.
+
+ Tüm bu gerekçeler doğrultusunda, modelin uygun bir yapıya sahip olduğu söylenebilir. Bu uygunluk temelinde, model kullanılarak sonraki 12 ay için tahminler gerçekleştirilecektir.
+
+### **Tahmin Değerleri**
+
+```{r}
+ongoru = forecast(Winters1,h=12)
+
+ongoru[["mean"]]
+ongoru
+```
+
+ Model kullanılarak yapılan tahminlerin %80 güven düzeyindeki alt sınırı (Lo80), üst sınırı (Hi80), %95 güven düzeyindeki alt sınırı (Lo95), üst sınırı (Hi95) ve nokta tahmin değerleri yukarıda sunulmuştur.
+
+
+```{r}
+autoplot(veri_ts2) + 
+  autolayer(ongoru, series = "Tahmin", PI=TRUE) +
+  ggtitle("Zaman Serisi Grafiği") +
+  xlab("Zaman(Yıl)") + 
+  ylab("Yumurta Sayısı(Bin Adet)")
+```
+
+
+## **Çarpımsal Winters Yöntemi**
+ 
+```{r}
+Winters2 = ets(abs(veri_ts2), model = "MAM")
+
+summary(Winters2)
+```
+
+ Kullanılan veri kümesine gerekli düzeltmeler yapıldıktan sonra **Çarpımsal Winters** yöntemi uygulandığında testin özet sonuçları yukarıdaki gibidir.
+
+ Modelin uygunluğunu kontrol etmek için ilk olarak orijinal seri ile tahmin serisinin uyumu incelenecektir.
+  
+```{r}
+tahmin1 = Winters2[["fitted"]]
+
+plot(window(veri_ts2), main = "Zaman Serisi Uyum Grafiği", 
+      xlab="Zaman (Yıl)", ylab="Yumurta Sayısı(Bin Adet)",lty=1, col=4, lwd=3,ylim=c(min(veri_ts2), max(veri_ts2)), 
+      cex.main = 1)
+lines( window(tahmin1) ,lty=3,col=2,lwd=3)
+legend("topleft",c(expression(paste(Veri)),
+               expression(paste(Tahmin))),
+       lwd=c(2,2),lty=c(1,3), cex=0.7, col=c(4,2),box.lwd = 0.5)
+```
+
+
+ Grafik incelendiğinde, orijinal seri ile tahmin serisinin yeteri kadar uyum içerisinde olduğu söylenebilir.
+ 
+ Artıkların, model varsayımlarına uygunluğunu incelerken genellikle kullanılan üç temel grafik bulunmaktadır. ACF Grafiği, Artıkların Zaman Grafiği ve Artıkların Dağılım Grafiği. Bu grafikler incelenecek ve Box-Ljung testi uygulanacaktır.
+ 
+```{r}
+hata1<- Winters2[["residuals"]]
+```
+
+### **Box-Ljung Test**
+
+\(H_0\) : Gecikmeler arasında ilişki yoktur.
+
+\(H_1\) : Gecikmeler arasında ilişki vardır.
+
+```{r}
+Box.test (hata1, lag = 42, type = "Ljung")
+```
+
+Test sonucunda, p-value > 0.05 olduğundan dolayı \(H_0\) **REDDEDİLEMEZ.** Yani gecikmeler arasında ilişki olmadığı söylenebilir.
+
+### **Hata serisinin ACF grafiği**
+
+```{r}
+Acf(hata1,main="Hata Serisi", lag.max = 42,  ylim=c(-1,1), lwd=3)
+```
+
+ Grafikte görüldüğü üzere, gecikmeler sınırların içerisinde olduğu için hata serisi, akgürültü serisidir.
+ 
+  Box-Ljung testi sonucunda da gecikmeler arasında ilişki olmadığını söylemiştik.  İncelediğimiz ACF grafiğinde de hata serisinin akgürültü serisi olduğu anlaşılmıştır.
+
+### **Artıkların Zaman Serisi Grafiği ve Dağılım Grafiği**
+
+```{r}
+checkresiduals(Winters1, lag = 42)
+```
+
+Residuals from ETS grafiği incelendiğinde, artıkların belirgin bir trend, mevsimsellik veya yapı göstermediği bu sebeple rastgele bir şekilde dağılmış olduğu söylenebilir. Bu istenilen bir durumdur.
+
+ Artıkların dağılım grafiğinde, artıkların dağılımının normal dağılıma uyumlu olması beklenir.Yukarıdaki grafik incelendiğinde, artıkların dağılımının ,neredeyse, normal dağılıma uyumlu olduğu söylenebilir.
+
+ Tüm bu gerekçeler doğrultusunda, modelin uygun bir yapıya sahip olduğu söylenebilir. Bu uygunluk temelinde, model kullanılarak sonraki 12 ay için tahminler gerçekleştirilecektir.
+
+### **Tahmin Değerleri**
+
+```{r}
+ongoru <- forecast(Winters2,h=12)
+
+ongoru[["mean"]]
+ongoru
+```
+
+Model kullanılarak yapılan tahminlerin %80 güven düzeyindeki alt sınırı (Lo80), üst sınırı (Hi80), %95 güven düzeyindeki alt sınırı (Lo95), üst sınırı (Hi95) ve nokta tahmin değerleri yukarıda sunulmuştur.
+
+```{r}
+autoplot(veri_ts2) + 
+  autolayer(ongoru, series = "Tahmin", PI=TRUE) +
+  ggtitle("Zaman Serisi Grafiği") +
+  xlab("Zaman(Yıl)") + 
+  ylab("Yumurta Sayısı(Bin Adet)")
+```
+
+
+## **Mevsimsel ARIMA Modelleri (SARIMA)**
+
+SARIMA modeli, ARIMA modelinin bir genişletmesi olup, mevsimsel bileşenleri de içerecek şekilde modelin parametrelerini düzenler. SARIMA, mevsimsel özellikleri AR, MA, ve differencing (farklılaştırma) terimleri ile doğrudan modele dahil eder.
+
+SARIMA modelinin genel formu şu şekildedir:
+
+SARIMA(p,d,q)(P,D,Q)
+
+ İlk adım olarak, veri setinin zaman serisi grafiği incelenmiştir. Zaman serisi grafiği üzerinde görsel bir inceleme yapıldığında, mevsimsel dalgalanmalar ve trend gibi yapılar gözlemlenmiştir. Bu yapıların varlığı, serinin durağan olmadığına işaret etmektedir. Zaman serisinin durağan hale getirilmesi için, trendin ve mevsimselliğin ortadan kaldırılması gerekmektedir. Zaman serisini durağanlaştırmak amacıyla, hem trend farkı hem de mevsimsel fark alınmıştır. Bu işlem, zaman serisinin durağan hale gelmesini sağlamak için gereklidir. Trend farkı almak, serinin zamanla artan veya azalan yapısını ortadan kaldırırken; mevsimsel fark almak, belirli bir periyot boyunca tekrar eden döngüsel yapıları düzeltir.
+
+```{r}
+verisar = ts(veri, start = c(2015,6),  frequency =12)
+```
+
+```{r}
+ts.plot(verisar,main="Zaman Serisi Grafiği", xlab="Zaman(Yıl)", ylab="Yumurta Sayısı(Bin adet)", lwd=2)
+```
+
+ Serinin genel yönelimindeki (trend) değişiklikleri ortadan kaldırmak için birinci dereceden fark alınmıştır. Bu işlem, trendi etkili bir şekilde gidererek veriyi daha düzgün hale getirmiştir.
+ 
+ Serideki mevsimsel bileşenleri ortadan kaldırmak amacıyla birinci dereceden mevsimsel fark alınmıştır. Bu, mevsimsel dalgalanmaları ortadan kaldırarak seriyi daha düzgün ve durağan hale getirmiştir.
+ 
+ Seriyi durağan hale getirmek için birinci dereceden farkların alınması yeterli olmuştur. Bu durumda ilk parametre değerlerimiz d=1, D=1 olarak belirlenmiştir.ACF ve PACF grafiklerinin incelenmesi, ARIMA modelinin parametrelerinin seçilmesinde önemli bir adımdır.
+
+```{r}
+Acf(verisar,lag.max = 42,  ylim=c(-1,1), lwd=3)
+Pacf(verisar,lag.max = 42,  ylim=c(-1,1), lwd=3)
+```
+```{r}
+Acf(diff(verisar,12),lag.max = 42, ylim=c(-1,1), lwd=3)
+Pacf(diff(verisar,12),lag.max = 42, ylim=c(-1,1), lwd=3, main = "PACF Grafiği", xlab = "Gecikme")
+```
+```{r}
+Acf(diff(diff(verisar,,2,12)),lag.max = 42, ylim=c(-1,1), lwd=3)
+Pacf(diff(diff(verisar,12)),lag.max = 42, ylim=c(-1,1), lwd=3, main = "PACF Grafiği", xlab = "Gecikme")
+```
+
+ACF ve PACF grafiklerinden elde edilen bulgulara dayanarak, q parametresinin en fazla “1”,
+p parametresinin ise en fazla “2” değerini alabileceğine karar verilmiştir.
+
+Yukarıda belirtilen parametre kombinasyonlarıyla toplamda on farklı ARIMA modeli test edilmiştir. Bu modeller arasından beş tanesi istatistiksel olarak anlamlı bulunmuş ve test sonuçları aşağıda sunulmuştur.
+
+### **Anlamlı Bulunan Modeller**
+
+***BIC = 2154*** 
+```{r}
+deneme_arima2 <- Arima(verisar, order = c(0,1,1), seasonal= c(1,1,0), include.constant=TRUE)
+coeftest(deneme_arima2)
+summary(deneme_arima2)
+```
+
+***BIC = 2162*** 
+```{r}
+deneme_arima3 <- Arima(verisar, order = c(0,1,1), seasonal= c(0,1,0), include.constant=TRUE)
+coeftest(deneme_arima3)
+summary(deneme_arima3)
+```
+***BIC=2155.86***
+```{r}
+deneme_arima4 <- Arima(verisar, order = c(2,1,0), seasonal= c(1,1,0), include.constant=TRUE)
+coeftest(deneme_arima4)
+summary(deneme_arima4)
+```
+
+***BIC=2164.08***
+```{r}
+deneme_arima9 <- Arima(verisar, order = c(2,1,0), seasonal= c(0,1,0), include.constant=TRUE)
+coeftest(deneme_arima9)
+summary(deneme_arima9)
+```
+***BIC=2156.49***
+```{r}
+deneme_arima10<- Arima(verisar, order = c(2,1,0), seasonal= c(2,1,0), include.constant=TRUE)
+coeftest(deneme_arima10)
+summary(deneme_arima10)
+```
+ Yukarıda, istatistiksel olarak anlamlı bulunan beş modelin istatistikleri verilmiştir. En iyi sonuç veren modeli belirlemek için Bayes Bilgi Kriterinden (BIC) yararlanılmıştır. Beş modelin BIC değerlerine bakıldığında, en küçük değere sahip model “BIC = 2154,47” değeri ile ARIMA(0,1,1)(1,1,0)[12] parametrelerine sahip modeldir.
+ 
+ En iyi model belirlendiğine göre şimdi modelin geçerliliği kontrol edilecektir. Bu amaçla, tahmin serisi ile orijinal serinin zaman grafiği, hata serisinin ACF grafiği ve Box-Ljung test istatistiği aşağıda sunulmuştur.
+
+```{r}
+tahmin = deneme_arima2[["fitted"]]
+hata = deneme_arima2[["residuals"]]
+```
+
+```{r}
+plot(window(verisar), main = "Uyum Grafiği",
+      xlab="Zaman (Yıl)", ylab="Yumurta Sayısı(Bin Adet)",lty=1, col=4, lwd=2)
+lines(window(tahmin) ,lty=3,col=2,lwd=3)
+legend("topleft",c(expression(paste("Veri")),
+               expression(paste("Tahmin"))),
+       lwd=c(2,2),lty=c(1,3), cex=0.7, col=c(4,2))
+```
+
+ Grafik incelendiğinde, orijinal seri ile tahmin serisinin yeteri kadar uyum içerisinde olduğu söylenebilir. Fakat daha kesin kararlar verebilmek için hata serisinin ACF grafiği ve BoxLjung testi incelenecektir.
+
+### **ACF,PACF, Artıkların Dağılım Grafiği ve Box-Lung Testi**
+
+```{r}
+Box.test (hata, lag = 42, type = "Ljung")
+
+checkresiduals(deneme_arima2)
+
+Acf(hata,main="Hata", lag.max = 42,  ylim=c(-1,1), lwd=3)
+Pacf(hata,main="Hata",lag.max = 42, ylim=c(-1,1), lwd=3)
+```
+
+ Grafikler ve Box-Ljung test istatistiği incelendiğinde, artıkların zaman içerisinde rastgele dağıldığı ve gecikmeler arasında herhangi bir ilişki bulunmadığı sonucuna ulaşılmıştır. Bu nedenle, modelin incelenen veri seti için uygun olduğu ifade edilebilir.
+ 
+### **Tahmin Değerleri**
+
+```{r}
+ongoru = forecast(deneme_arima2 , h=12)
+ongoru["mean"]
+```
+
+```{r}
+autoplot(verisar) + 
+  autolayer(ongoru, series="Tahmin", PI=TRUE) +
+  ggtitle("Zaman Serisi ve SARIMA Tahminler") +
+  xlab("Zaman") + 
+  ylab("Degerler")
+```
+
+
+## **Kullanılan Modellerin Tahmin Değerleri ile Gerçek Değerlerin Karşılaştırılması**
+
+ Modelin geçerliliğini anlayabilmek için gerçek değerler ile tahmin değerlerinin çizgi grafiği,
+tahmin hatalarının dağılımı, ortalama mutlak hata(MAE), kök ortalama hata(RMSE) ve
+ortalama yüzde hata(MAPE) değerleri incelenmiştir. Elde edilen bulgular aşağıda
+sunulmuştur.
+
+```{r}
+original_values = ts(c(1838422, 1733464
+, 1790081
+, 1707799
+, 1764629
+, 1694374
+, 1706493
+, 1808368
+, 1828030))
+
+forecasted_values = ts(c(1830934 ,1716096 ,1823293 ,1748329, 1748248, 1687653, 1761861 ,1854680, 1866432))
+
+forecasted_valueswinters = ts(c(1846160, 1728852, 1798002, 1732222, 1732595, 1647998, 1699930, 1774369, 1786176))
+```
+
+
+```{r}
+plot(original_values, col = "blue", lty = 1, ylim = range(c(original_values, forecasted_values)), 
+     main = "SARIMA Modeli", xlab = "Zaman", ylab = "Degerler")
+lines(forecasted_values, col = "red", lty = 2)
+legend("topleft", legend = c("Orijinal Degerler", "Tahmin Edilen Degerler"), 
+       col = c("blue", "red"), lty = c(1, 2), cex = 0.8)
+```
+
+```{r}
+plot(original_values, col = "blue", lty = 1, ylim = range(c(original_values, forecasted_valueswinters)), 
+     main = "Winters Modeli", xlab = "Zaman", ylab = "Degerler")
+lines(forecasted_valueswinters, col = "red", lty = 2)
+legend("topleft", legend = c("Orijinal Degerler", "Tahmin Edilen Degerler"), 
+       col = c("blue", "red"), lty = c(1, 2), cex = 0.8)
+```
+
+### **Ortalama Mutlak Hata (MAE)**
+
+```{r}
+mae = mean(abs(original_values - forecasted_values))
+print(paste("Ortalama Mutlak Hata (MAE) SARIMA:", round(mae, 2)))
+
+mae = mean(abs(original_values - forecasted_valueswinters))
+print(paste("Ortalama Mutlak Hata (MAE) Winters:", round(mae, 2)))
+```
+
+### **Kök Ortalama Kare Hata (RMSE)**
+
+```{r}
+rmse = sqrt(mean((original_values - forecasted_values)^2))
+print(paste("Kok Ortalama Kare Hata (RMSE) SARIMA:", round(rmse, 2)))
+
+rmse = sqrt(mean((original_values - forecasted_valueswinters)^2))
+print(paste("Kok Ortalama Kare Hata (RMSE) Winters:", round(rmse, 2)))
+```
+
+### **Ortalama Yüzde Hata (MAPE)**
+
+```{r}
+mape <- mean(abs((original_values - forecasted_values) / original_values) * 100)
+print(paste("Ortalama Yuzde Hata (MAPE) SARIMA:", round(mape, 2), "%"))
+
+mape <- mean(abs((original_values - forecasted_valueswinters) / original_values) * 100)
+print(paste("Ortalama Yuzde Hata (MAPE) WİNTERS:", round(mape, 2), "%"))
+```
+
+
+```{r}
+residuals <- original_values - forecasted_valueswinters
+plot(residuals, type = "o", col = "red", main = "Winters Modeli Tahmin Hatalarının Dağılımı", 
+     xlab = "Zaman", ylab = "Hata")
+abline(h = 0, col = "blue", lty = 2)
+
+```
+
+```{r}
+residuals2 <- original_values - forecasted_values
+
+plot(residuals2, type = "o", col = "red", main = "SARIMA Modeli Tahmin Hatalarının Dağılımı", 
+     xlab = "Zaman", ylab = "Hata")
+abline(h = 0, col = "blue", lty = 2)
+```
+
+ Winters modelleri ve SARIMA modelinin farklı teorik temellere sahip olması, birinin kesinlikle diğerinden üstün olduğu anlamına gelmez. Ancak, orijinal seri değerleri ile Toplamsal Winters modelinin tahmin edilen değerlerinin yer aldığı çizgi grafiğine bakıldığında, bu modelin SARIMA modeline göre daha uyumlu bir grafik sunduğu söylenebilir. Ayrıca, MAE, RMSE ve MAPE gibi hata metrik değerleri incelendiğinde, Toplamsal Winters modelinin daha düşük hata değerlerine sahip olduğu ve belirli dönemlerde SARIMA modelinden daha iyi tahminler yaptığı sonucuna varılabilir.
+ 
+ 
+ 
+## **Sonuç**
+ 
+ 
+ Bu çalışma, Türkiye'nin tavuk yumurtası üretim verilerini incelemek ve bu veriler
+üzerinden geleceğe yönelik öngörülerde bulunmak amacıyla gerçekleştirilmiştir. Analizlerde
+kullanılan yöntemler, verilerin trend ve mevsimsel bileşenlerini anlamada etkili olmuş, en
+uygun modelin belirlenmesine olanak tanımıştır. Toplamsal Winters modeli, Çarpımsal
+Winters modeli ve SARIMA(0,1,1)(1,1,0) modeli incelenen veri seti ile uyumlu
+bulunmuştur. Sonuçlar, Toplamsal Winters modelinin, daha düşük hata metrikleri ve gerçek
+değerlere olan yakınlığıyla SARIMA ve Çarpımsal Winters modellerine kıyasla daha iyi
+tahmin performansı sunduğunu ortaya koymuştur. Bu bulgular, üretim ve gıda politikalarının
+planlanmasında ve kaynak tahsisinde karar alıcılara değerli bilgiler sunabilir. Gelecekte, daha
+karmaşık modellerin ve ek veri kaynaklarının dahil edilmesiyle tahmin doğruluğu daha da
+artırılabilir.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
