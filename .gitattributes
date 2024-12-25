@@ -1,3 +1,7 @@
-
 *.R linguist-detectable=true
 *.pbix linguist-detectable=true
+*.csharp linguist-detectable=false
+*.java linguist-detectable=false
+*.js linguist-detectable=false
+*.html linguist-detectable=false
+*.xml linguist-detectable=false
